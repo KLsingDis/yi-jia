@@ -1,0 +1,14 @@
+# 把下面这段插到你实际加载的 profile 的 cordis.patch.yml 最前面。
+#
+# 桌面版：~/.dsh/profiles/desktop/cordis.patch.yml
+# Web 版：~/.dsh/profiles/web/cordis.patch.yml
+#
+# 注意：装错 profile 是头号坑——插件会完全不加载，且没有任何报错。
+# 判断当前用的是哪个 profile：
+#   Get-CimInstance Win32_Process -Filter "Name='DeepSeek Harness.exe'" |
+#     Where-Object { $_.CommandLine -like '*profiles*' } |
+#     ForEach-Object { $_.CommandLine }
+
+- insert:
+    - id: offpeak-guard
+      name: file:///C:/Users/YOUR_NAME/.dsh/profiles/web/offpeak-guard.mjs
