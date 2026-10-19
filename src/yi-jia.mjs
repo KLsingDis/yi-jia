@@ -10,7 +10,7 @@
 //
 // 注入 UI 用的是官方 webserver/index-inject 事件（不要用 tapIndex——它只作用于原始 markup，
 // 常拿到重定向页）。扫描走外部 node，因此与 DSH 内嵌 Node 版本解耦。
-export const name = 'offpeak-guard'
+export const name = 'yi-jia'
 
 import os from 'node:os'
 import fs from 'node:fs'
@@ -21,12 +21,12 @@ import { fileURLToPath } from 'node:url'
 const TZ_OFFSET_MS = 8 * 3600 * 1000
 const SCAN_INTERVAL_MS = 30 * 60 * 1000   // 全量重扫较重，后台 30 分钟一次；要新鲜数据用 cost_report.js --refresh
 const HOME = os.homedir()
-const GUARD_DIR = path.join(HOME, '.dsh', 'offpeak-guard')
+const GUARD_DIR = path.join(HOME, '.dsh', 'yi-jia')
 const STATUS_JSON = path.join(GUARD_DIR, 'status.json')
 const SESSIONS_ROOT = path.join(HOME, '.dsh', 'sessions')
 
 // 扫描器随包发布（scripts/scan.cjs），按本模块位置解析——安装成 npm bundle 后依然找得到。
-// 兼容旧的扁平安装：~/.dsh/offpeak-guard/scan.cjs。
+// 兼容旧的扁平安装：~/.dsh/yi-jia/scan.cjs。
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SCAN_CANDIDATES = [
   path.join(PKG_ROOT, 'scripts', 'scan.cjs'),
@@ -143,7 +143,7 @@ function guardMessage() {
     `[成本守卫] 当前北京时间 ${beijingHM(now)} 为峰时（周一至周五 9-12 / 14-18 点，1× 价格；${when} 后转谷时，约 ${cd}）。` +
     `按汉化工作流约定：峰时不启动翻译/批处理类子代理，只做读写文件、跑脚本、校验等开销低的工作；` +
     `如确需现在跑批量任务，请先向用户确认。挪到谷时可省 50%。`
-  return { source: { kind: 'plugin', plugin: 'offpeak-guard', form: 'window-guard' }, content: [{ type: 'text', text }] }
+  return { source: { kind: 'plugin', plugin: 'yi-jia', form: 'window-guard' }, content: [{ type: 'text', text }] }
 }
 
 // ---- 2) web badge via webserver/index-inject ----
@@ -163,8 +163,8 @@ function hm(ms){var d=bj(ms);return p2(d.getUTCHours())+':'+p2(d.getUTCMinutes()
 function ymd(ms){var d=bj(ms);return p2(d.getUTCMonth()+1)+'-'+p2(d.getUTCDate());}
 function mt(n){n=n||0;if(n<1e3)return n;if(n<1e6)return (n/1e3).toFixed(1)+'K';return (n/1e6).toFixed(2)+'M';}
 function yuan(n){return '¥'+Number(n||0).toFixed(2);}
-var OPEN_KEY='offpeak-guard-open';
-var POS_KEY='offpeak-guard-pos';
+var OPEN_KEY='yi-jia-open';
+var POS_KEY='yi-jia-pos';
 function isOpen(){try{return localStorage.getItem(OPEN_KEY)==='1';}catch(e){return false;}}
 function setOpen(v){try{localStorage.setItem(OPEN_KEY,v?'1':'0');}catch(e){}}
 function getPos(){try{var s=localStorage.getItem(POS_KEY);if(!s)return null;var p=JSON.parse(s);return (typeof p.x==='number'&&typeof p.y==='number')?p:null;}catch(e){return null;}}
@@ -181,7 +181,7 @@ function overlapsUI(r){
     for(var i=0;i<pts.length;i++){
       var el=document.elementFromPoint(pts[i][0],pts[i][1]);
       if(!el)continue;
-      if(el.closest&&el.closest('#offpeak-guard-badge'))continue;
+      if(el.closest&&el.closest('#yi-jia-badge'))continue;
       if(el.closest&&el.closest('button,a,input,textarea,select,[role="button"],[contenteditable="true"]'))return true;
     }
   }catch(e){}
@@ -235,9 +235,9 @@ function detail(st,now,peak,flip){
   return d;
 }
 function render(){
-  var old=document.getElementById('offpeak-guard-badge');if(old)old.remove();
+  var old=document.getElementById('yi-jia-badge');if(old)old.remove();
   var now=Date.now(),peak=isPeak(now),flip=next(now),st=cfg().status,open=isOpen();
-  var box=mk('div',null,null);box.id='offpeak-guard-badge';
+  var box=mk('div',null,null);box.id='yi-jia-badge';
   box.style.cssText='position:fixed;z-index:2147483000;font:12px/1.5 system-ui,sans-serif;color:#fff;'+
     'padding:6px 9px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.35);max-width:300px;'+
     'text-align:right;cursor:grab;user-select:none;transition:background .2s;opacity:.96;';
@@ -338,7 +338,7 @@ function positionBox(box){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',render);else render();
 setInterval(function(){
-  var b=document.getElementById('offpeak-guard-badge');
+  var b=document.getElementById('yi-jia-badge');
   if(!b)return;
   if(!getPos())positionBox(b);          // 未手动定位时跟随窗口尺寸变化
   else{var r=b.getBoundingClientRect();var p=clampPos(r.left,r.top,r.width,r.height);b.style.left=p.x+'px';b.style.top=p.y+'px';}
@@ -354,7 +354,7 @@ function badgeGlobalScript() {
 }
 
 // ---- apply ----
-// 诊断日志：写到 ~/\.dsh/offpeak-guard/guard.log，用来确认插件被加载、各钩子是否注册成功。
+// 诊断日志：写到 ~/\.dsh/yi-jia/guard.log，用来确认插件被加载、各钩子是否注册成功。
 const LOG_FILE = path.join(GUARD_DIR, 'guard.log')
 function log(msg) {
   try {
@@ -405,7 +405,7 @@ export function apply(ctx) {
             log('index-inject rows pushed (table=' + table.length + ')')
           } catch (e) { log('index-inject push FAILED: ' + (e && e.message)) }
         }),
-        'offpeak-guard: index badge rows',
+        'yi-jia: index badge rows',
       )
       log('webserver/index-inject subscriber registered')
     })

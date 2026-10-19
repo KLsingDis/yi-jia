@@ -85,27 +85,27 @@ node scripts/cost_report.js --json     # 机读
 DSH 插件面板 → **安装** → 填入：
 
 ```
-github:KLsingDis/offpeak-guard
+github:KLsingDis/yi-jia
 ```
 
 或本地克隆后指向目录：
 
 ```
-file:///K:/offpeak-guard
+file:///K:/yi-jia
 ```
 
-装好后在 plugin 列表里启用 `offpeak-guard`，重启一次 DSH。
+装好后在 plugin 列表里启用 `yi-jia`，重启一次 DSH。
 
 ### 方式 B：手动放置（开发者）
 
 ```bash
 # 插件源
 mkdir -p ~/.dsh/profiles/web
-cp src/offpeak-guard.mjs ~/.dsh/profiles/web/
+cp src/yi-jia.mjs ~/.dsh/profiles/web/
 
 # 成本扫描器（旧的扁平布局；bundle 安装不需要这步）
-mkdir -p ~/.dsh/offpeak-guard
-cp scripts/scan.cjs ~/.dsh/offpeak-guard/
+mkdir -p ~/.dsh/yi-jia
+cp scripts/scan.cjs ~/.dsh/yi-jia/
 ```
 
 编辑**实际被加载的那个 profile** 的 `cordis.patch.yml`：
@@ -117,8 +117,8 @@ cp scripts/scan.cjs ~/.dsh/offpeak-guard/
 
 ```yaml
 - insert:
-    - id: offpeak-guard
-      name: file:///C:/Users/<你的用户名>/.dsh/profiles/web/offpeak-guard.mjs
+    - id: yi-jia
+      name: file:///C:/Users/<你的用户名>/.dsh/profiles/web/yi-jia.mjs
 ```
 
 > ⚠️ **装错 profile 是头号坑**。表现：插件完全无日志、徽标不出现、status.json 不更新。
@@ -128,7 +128,7 @@ cp scripts/scan.cjs ~/.dsh/offpeak-guard/
 ### 验证
 
 ```bash
-cat ~/.dsh/offpeak-guard/guard.log
+cat ~/.dsh/yi-jia/guard.log
 ```
 
 应看到：
@@ -153,7 +153,7 @@ DSH 的插件面板从**已安装的 bundle** 读取 `dsh` 清单与 `locale/*.j
   ```bash
   npm publish --access public
   ```
-  之后用户在面板里填包名 `offpeak-guard` 即可。
+  之后用户在面板里填包名 `yi-jia` 即可。
 
 ## 用法
 
@@ -194,7 +194,7 @@ python scripts/offpeak.py --holiday 2026-10-01
 ┌─────────────────────────────────────────────────┐
 │  DSH 宿主进程                                    │
 │  ┌───────────────────────────────────────────┐  │
-│  │ offpeak-guard.mjs (ESM 插件)               │  │
+│  │ yi-jia.mjs (ESM 插件)               │  │
 │  │                                           │  │
 │  │  agent/pre-step ──→ 峰时？注入提醒          │  │
 │  │  webserver/index-inject ──→ 注入徽标脚本    │  │
@@ -211,7 +211,7 @@ python scripts/offpeak.py --holiday 2026-10-01
               │  └─ 写 status.json   │
               └──────────┬───────────┘
                          ▼
-              ~/.dsh/offpeak-guard/status.json
+              ~/.dsh/yi-jia/status.json
                          │
         ┌────────────────┴────────────────┐
         ▼                                 ▼
@@ -281,7 +281,7 @@ node scripts/test.mjs
 |---|---|---|
 | `SCAN_INTERVAL_MS` | 插件顶部 | 30 分钟 |
 | `SESSIONS_ROOT` | 插件顶部 | `~/.dsh/sessions` |
-| `GUARD_DIR` | 插件顶部 | `~/.dsh/offpeak-guard` |
+| `GUARD_DIR` | 插件顶部 | `~/.dsh/yi-jia` |
 | `DSH_HOLIDAYS` | 环境变量 | 空 |
 
 ## 退出
@@ -289,8 +289,8 @@ node scripts/test.mjs
 ```bash
 # 停用：注释掉 cordis.patch.yml 里那条 insert，重启
 # 彻底删除：
-rm ~/.dsh/profiles/web/offpeak-guard.mjs
-rm -rf ~/.dsh/offpeak-guard
+rm ~/.dsh/profiles/web/yi-jia.mjs
+rm -rf ~/.dsh/yi-jia
 ```
 
 ## License

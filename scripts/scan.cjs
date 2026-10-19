@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// dsh-offpeak-guard session scanner.
+// dsh-yi-jia session scanner.
 // Reads DSH session logs (*.jsonl.zstd), aggregates token usage per peak/off-peak
 // window (Beijing time), computes CNY cost, writes a compact status JSON.
 //
@@ -8,7 +8,7 @@
 // Env: DSH_HOLIDAYS=YYYY-MM-DD,YYYY-MM-DD (optional; those dates are all off-peak)
 //
 // Node >= 22 required (uses node:zlib zstdDecompressSync). Runs as a spawned child
-// of the dsh-offpeak-guard plugin; safe to run standalone for debugging.
+// of the dsh-yi-jia plugin; safe to run standalone for debugging.
 'use strict';
 
 const fs = require('fs');
@@ -37,7 +37,7 @@ function loadHolidays() {
   // 1) env var: DSH_HOLIDAYS=YYYY-MM-DD,YYYY-MM-DD
   const s = process.env.DSH_HOLIDAYS || '';
   for (let h of s.replace(/;/g, ',').split(',')) { h = h.trim(); if (h) set.add(h); }
-  // 2) file fallback: ~/.dsh/offpeak-guard/holidays.txt (one YYYY-MM-DD per line, # = comment)
+  // 2) file fallback: ~/.dsh/yi-jia/holidays.txt (one YYYY-MM-DD per line, # = comment)
   try {
     const fp = path.join(__dirname, 'holidays.txt');
     if (fs.existsSync(fp)) {

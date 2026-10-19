@@ -1,4 +1,4 @@
-// End-to-end test of offpeak-guard.mjs apply() — runnable straight from a clone.
+// End-to-end test of yi-jia.mjs apply() — runnable straight from a clone.
 //   node scripts/test.mjs
 // Uses a stubbed DOM + fake plugin context; no DSH install or live sessions required.
 import path from 'node:path'
@@ -7,9 +7,9 @@ import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const PLUGIN = path.join(HERE, '..', 'src', 'offpeak-guard.mjs')
+const PLUGIN = path.join(HERE, '..', 'src', 'yi-jia.mjs')
 
-// The plugin reads its cost snapshot from ~/.dsh/offpeak-guard/status.json at apply() time.
+// The plugin reads its cost snapshot from ~/.dsh/yi-jia/status.json at apply() time.
 // Intercept that one read so the test is self-contained (fresh clone, no DSH run needed),
 // while leaving every other fs access untouched.
 const SNAPSHOT = {
@@ -31,7 +31,7 @@ const SNAPSHOT = {
 }
 const realReadFileSync = fs.readFileSync
 fs.readFileSync = function (file, ...rest) {
-  if (typeof file === 'string' && file.replace(/\\/g, '/').endsWith('/offpeak-guard/status.json')) {
+  if (typeof file === 'string' && file.replace(/\\/g, '/').endsWith('/yi-jia/status.json')) {
     return JSON.stringify(SNAPSHOT)
   }
   return realReadFileSync.call(fs, file, ...rest)
@@ -69,7 +69,7 @@ const u1 = { role: 'user', id: 'u1', content: [{ type: 'text', text: '批量翻�
 let d = await preStep({ messages: [u1] }, () => next([u1]))
 ok(d.messages.length === 2, 'peak: guard message appended')
 ok(/峰时/.test(d.messages[1].content[0].text), 'peak: mentions 峰时')
-ok(d.messages[1].source.plugin === 'offpeak-guard', 'peak: plugin-tagged')
+ok(d.messages[1].source.plugin === 'yi-jia', 'peak: plugin-tagged')
 
 d = await preStep({ messages: [u1] }, () => next([u1]))
 ok(d.messages.length === 1, 'peak: same turn deduped')
@@ -96,7 +96,7 @@ const g = table.find(r => r.kind === 'global')
 const s = table.find(r => r.kind === 'script')
 ok(!!g && g.name === '__CG_BOOT__' && typeof g.value === 'string', 'global row: __CG_BOOT__ string value')
 ok(!!s && s.placement === 'head' && typeof s.text === 'string', 'script row: head placement + text')
-ok(s.text.includes('offpeak-guard-badge'), 'script row: contains badge element id')
+ok(s.text.includes('yi-jia-badge'), 'script row: contains badge element id')
 ok(s.text.includes('__CG_BOOT__'), 'script row: reads __CG_BOOT__')
 
 // Evaluate the global value then the script in a stubbed DOM.
@@ -170,7 +170,7 @@ try {
   // --- collapsed state ---
   eval(s.text)
   ok(true, 'badge script executes without throwing')
-  let badge = bodyEl.children.find(c => c.id === 'offpeak-guard-badge')
+  let badge = bodyEl.children.find(c => c.id === 'yi-jia-badge')
   ok(!!badge, 'collapsed: badge mounted')
   let text = badge.textContent
   ok(/谷时|峰时/.test(text), 'collapsed: shows window')
@@ -187,8 +187,8 @@ try {
   // --- click to expand (mousedown + mouseup without movement) ---
   badge.fire('mousedown', { button: 0, clientX: 100, clientY: 700, preventDefault() {}, stopPropagation() {} })
   fireDoc('mouseup', { clientX: 100, clientY: 700 })
-  ok(store['offpeak-guard-open'] === '1', 'click: persists open state')
-  badge = bodyEl.children.find(c => c.id === 'offpeak-guard-badge')
+  ok(store['yi-jia-open'] === '1', 'click: persists open state')
+  badge = bodyEl.children.find(c => c.id === 'yi-jia-badge')
   text = badge.textContent
   ok(/v4-pro/.test(text), 'expanded: shows v4-pro comparison')
   ok(/缓存命中率/.test(text), 'expanded: shows cache hit rate')
@@ -202,26 +202,26 @@ try {
   badge.fire('mousedown', { button: 0, clientX: 100, clientY: 700, preventDefault() {}, stopPropagation() {} })
   fireDoc('mousemove', { clientX: 400, clientY: 500 })
   fireDoc('mouseup', { clientX: 400, clientY: 500 })
-  const savedPos = JSON.parse(store['offpeak-guard-pos'] || 'null')
+  const savedPos = JSON.parse(store['yi-jia-pos'] || 'null')
   ok(!!savedPos && typeof savedPos.x === 'number', 'drag: position persisted')
-  ok(store['offpeak-guard-open'] === '1', 'drag: does not toggle open state')
+  ok(store['yi-jia-open'] === '1', 'drag: does not toggle open state')
 
   // --- click again collapses ---
   // Re-query: the previous mousedown/mouseup pair may have re-rendered.
-  badge = bodyEl.children.find(c => c.id === 'offpeak-guard-badge')
-  ok(store['offpeak-guard-open'] === '1', 'state before collapse click is open')
+  badge = bodyEl.children.find(c => c.id === 'yi-jia-badge')
+  ok(store['yi-jia-open'] === '1', 'state before collapse click is open')
   badge.fire('mousedown', { button: 0, clientX: 300, clientY: 600, preventDefault() {}, stopPropagation() {} })
   fireDoc('mouseup', { clientX: 300, clientY: 600 })
-  ok(store['offpeak-guard-open'] === '0', 'click again: collapses (open=' + store['offpeak-guard-open'] + ')')
+  ok(store['yi-jia-open'] === '0', 'click again: collapses (open=' + store['yi-jia-open'] + ')')
 
   // --- open state + position survive reload (localStorage) ---
-  store['offpeak-guard-open'] = '1'
-  store['offpeak-guard-pos'] = JSON.stringify({ x: 321, y: 456 })
+  store['yi-jia-open'] = '1'
+  store['yi-jia-pos'] = JSON.stringify({ x: 321, y: 456 })
   bodyEl = makeEl('body')
   // reset module guard so the script re-runs as on a fresh page load
   delete win.__DSH_COST_GUARD__
   eval(s.text)
-  badge = bodyEl.children.find(c => c.id === 'offpeak-guard-badge')
+  badge = bodyEl.children.find(c => c.id === 'yi-jia-badge')
   ok(!!badge && /v4-pro/.test(badge.textContent), 'persistence: reopens after page reload')
   ok(badge.style.left === '321px' && badge.style.top === '456px',
      'persistence: restores saved position (got ' + badge.style.left + ',' + badge.style.top + ')')

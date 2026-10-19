@@ -1,11 +1,11 @@
 {
-  "name": "offpeak-guard",
+  "name": "yi-jia",
   "version": "1.0.0",
   "description": "DeepSeek peak/off-peak window + reasoning-effort cost guard for DSH: blocks batch work during peak hours, shows live cost, and keeps an auditable ledger.",
   "type": "module",
-  "main": "./src/offpeak-guard.mjs",
+  "main": "./src/yi-jia.mjs",
   "exports": {
-    ".": "./src/offpeak-guard.mjs",
+    ".": "./src/yi-jia.mjs",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg",
@@ -13,7 +13,7 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "src/offpeak-guard.mjs",
+    "src/yi-jia.mjs",
     "scripts/scan.cjs",
     "scripts/cost_report.js",
     "scripts/offpeak.py",
@@ -40,7 +40,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/KLsingDis/offpeak-guard.git"
+    "url": "git+https://github.com/KLsingDis/yi-jia.git"
   },
   "engines": {
     "node": ">=22"

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// /cost —— DeepSeek 峰谷成本报表（dsh-offpeak-guard 的 skill 侧入口）。
+// /cost —— DeepSeek 峰谷成本报表（dsh-yi-jia 的 skill 侧入口）。
 //
-// 读取（必要时刷新）~/.dsh/offpeak-guard/status.json，输出人类可读的 Markdown 成本汇总，
+// 读取（必要时刷新）~/.dsh/yi-jia/status.json，输出人类可读的 Markdown 成本汇总，
 // 供 agent 在对话里贴给用户。数据源是 DSH 全部会话日志，按峰/谷窗口计价。
 //
 // 用法（用外部运行时 node 跑，见 pricing-window.md）：
@@ -15,7 +15,7 @@ const path = require('path');
 const { spawnSync } = require('node:child_process');
 
 const HOME = process.env.USERPROFILE || process.env.HOME || process.cwd();
-const GUARD_DIR = path.join(HOME, '.dsh', 'offpeak-guard');
+const GUARD_DIR = path.join(HOME, '.dsh', 'yi-jia');
 const STATUS_JSON = path.join(GUARD_DIR, 'status.json');
 const SCAN_SCRIPT = path.join(GUARD_DIR, 'scan.cjs');
 const SESSIONS_ROOT = path.join(HOME, '.dsh', 'sessions');
