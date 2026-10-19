@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Off-Peak Guard",
+    "description": "Watches DeepSeek peak/off-peak pricing and reasoning-effort cost: blocks batch work during peak hours, shows a draggable live-cost badge, and keeps an auditable ledger."
+  }
+}

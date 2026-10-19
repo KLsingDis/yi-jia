@@ -1,0 +1,9 @@
+# offpeak-guard bundle patch.
+#
+# Installs the guard by inserting this package itself into the profile tree.
+# The plugin reads its cost snapshot from ~/.dsh/offpeak-guard/status.json and
+# spawns scripts/scan.cjs to refresh it; both paths are resolved relative to the
+# installed package, so no config is needed here.
+- insert:
+    - id: offpeak-guard
+      name: offpeak-guard

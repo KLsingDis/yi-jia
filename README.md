@@ -78,19 +78,35 @@ node scripts/cost_report.js --json     # 机读
 
 ## 安装
 
-### 1. 放置文件
+这是一个标准 **DSH bundle**：`package.json` 声明 `dsh.bundle.patch`，装进 profile 后即出现在插件面板里。
+
+### 方式 A：从 GitHub 安装（推荐）
+
+DSH 插件面板 → **安装** → 填入：
+
+```
+github:KLsingDis/offpeak-guard
+```
+
+或本地克隆后指向目录：
+
+```
+file:///K:/offpeak-guard
+```
+
+装好后在 plugin 列表里启用 `offpeak-guard`，重启一次 DSH。
+
+### 方式 B：手动放置（开发者）
 
 ```bash
-# 插件源（任意位置，下面注册时用绝对路径）
+# 插件源
 mkdir -p ~/.dsh/profiles/web
 cp src/offpeak-guard.mjs ~/.dsh/profiles/web/
 
-# 成本扫描器 + 状态目录（路径固定，插件内部按此查找）
+# 成本扫描器（旧的扁平布局；bundle 安装不需要这步）
 mkdir -p ~/.dsh/offpeak-guard
 cp scripts/scan.cjs ~/.dsh/offpeak-guard/
 ```
-
-### 2. 注册到 profile
 
 编辑**实际被加载的那个 profile** 的 `cordis.patch.yml`：
 
@@ -98,8 +114,6 @@ cp scripts/scan.cjs ~/.dsh/offpeak-guard/
 |---|---|
 | DSH 桌面版 | `~/.dsh/profiles/desktop/cordis.patch.yml` |
 | DSH Web 版 | `~/.dsh/profiles/web/cordis.patch.yml` |
-
-在最顶层的数组里加一条 insert：
 
 ```yaml
 - insert:
@@ -111,11 +125,7 @@ cp scripts/scan.cjs ~/.dsh/offpeak-guard/
 > 判断方法：看 DSH 进程命令行里的 profile 参数，例如
 > `DeepSeek Harness.exe ... C:\Users\X\.dsh\profiles\desktop ...`
 
-### 3. 重启
-
-完全退出 DSH（不是关窗口——要结束所有进程），再打开。
-
-### 4. 验证
+### 验证
 
 ```bash
 cat ~/.dsh/offpeak-guard/guard.log
@@ -132,6 +142,18 @@ index-inject rows pushed (table=N)
 ```
 
 任何一行缺失，就是对应环节没注册上。
+
+### 关于"被 DSH 收录"
+
+DSH 的插件面板从**已安装的 bundle** 读取 `dsh` 清单与 `locale/*.json` 里的 `meta.title` /
+`meta.description` 来展示条目和图标。所以：
+
+- 本仓库已经是合规 bundle，可通过 `github:` / `file:` 直接在面板安装即被收录进本地插件库存；
+- 若要做成 **npm 公开包**（能被所有人从面板搜索安装），需要发布到 npm registry：
+  ```bash
+  npm publish --access public
+  ```
+  之后用户在面板里填包名 `offpeak-guard` 即可。
 
 ## 用法
 

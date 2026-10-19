@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Off-Peak Guard">
+  <!-- 盾牌：守卫 -->
+  <path d="M32 5 55 14v18c0 12.5-9.4 22.6-23 27C18.4 54.6 9 44.5 9 32V14L32 5Z"
+        fill="#1e8449" stroke="#14663a" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- 月亮 + 下降箭头：谷时、低价 -->
+  <circle cx="27" cy="27" r="8.5" fill="#f4d03f"/>
+  <circle cx="31.5" cy="23.5" r="7.2" fill="#1e8449"/>
+  <path d="M39 26v12m0 0-4.5-4.5M39 38l4.5-4.5"
+        fill="none" stroke="#e8f5ec" stroke-width="3.6"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

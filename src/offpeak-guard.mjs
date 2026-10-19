@@ -16,14 +16,26 @@ import os from 'node:os'
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
 const TZ_OFFSET_MS = 8 * 3600 * 1000
 const SCAN_INTERVAL_MS = 30 * 60 * 1000   // 全量重扫较重，后台 30 分钟一次；要新鲜数据用 cost_report.js --refresh
 const HOME = os.homedir()
 const GUARD_DIR = path.join(HOME, '.dsh', 'offpeak-guard')
 const STATUS_JSON = path.join(GUARD_DIR, 'status.json')
-const SCAN_SCRIPT = path.join(GUARD_DIR, 'scan.cjs')
 const SESSIONS_ROOT = path.join(HOME, '.dsh', 'sessions')
+
+// 扫描器随包发布（scripts/scan.cjs），按本模块位置解析——安装成 npm bundle 后依然找得到。
+// 兼容旧的扁平安装：~/.dsh/offpeak-guard/scan.cjs。
+const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const SCAN_CANDIDATES = [
+  path.join(PKG_ROOT, 'scripts', 'scan.cjs'),
+  path.join(GUARD_DIR, 'scan.cjs'),
+]
+function resolveScanScript() {
+  for (const p of SCAN_CANDIDATES) { try { if (fs.existsSync(p)) return p } catch (e) {} }
+  return null
+}
 
 function beijing(ms) { return new Date((ms == null ? Date.now() : ms) + TZ_OFFSET_MS) }
 function loadHolidays() {
@@ -61,25 +73,32 @@ function pad(n) { return String(n).padStart(2, '0') }
 function beijingHM(ms) { const d = beijing(ms); return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}` }
 
 // ---- external node discovery (for the background scanner) ----
+// The scanner needs zstd (Node >= 22). DSH's embedded Node version is not guaranteed,
+// so prefer a bundled runtime when present and fall back to `process.execPath`
+// (which is the DSH/Electron binary only under Node-integration; the spawn below
+// still works because it re-runs node via ELECTRON_RUN_AS_NODE semantics).
 function findNode() {
   const cands = []
   try {
     const rt = path.join(HOME, '.dsh', 'dsh-runtimes')
     for (const d of fs.readdirSync(rt)) {
-      cands.push(path.join(rt, d, 'dependencies', 'node', 'bin', 'node.exe'))
+      const base = path.join(rt, d, 'dependencies', 'node', 'bin')
+      cands.push(path.join(base, 'node.exe'), path.join(base, 'node'))
     }
   } catch (e) {}
   for (const c of cands) { try { if (fs.existsSync(c)) return c } catch (e) {} }
-  return null
+  // Last resort: any `node` on PATH (works on Linux/macOS and on Windows when installed).
+  return process.env.OFFPEAK_GUARD_NODE || 'node'
 }
 
 let scanTimer = null
 function runScan() {
   try {
     const node = findNode()
-    if (!node || !fs.existsSync(SCAN_SCRIPT) || !fs.existsSync(SESSIONS_ROOT)) return
-    const child = spawn(node, [SCAN_SCRIPT, SESSIONS_ROOT, STATUS_JSON], {
-      env: { ...process.env, DSH_HOLIDAYS: process.env.DSH_HOLIDAYS || '' },
+    const script = resolveScanScript()
+    if (!script || !fs.existsSync(SESSIONS_ROOT)) return
+    const child = spawn(node, [script, SESSIONS_ROOT, STATUS_JSON], {
+      env: { ...process.env, DSH_HOLIDAYS: process.env.DSH_HOLIDAYS || '', ELECTRON_RUN_AS_NODE: '1' },
       detached: true, stdio: 'ignore',
     })
     child.on('error', () => {})

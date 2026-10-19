@@ -1,0 +1,51 @@
+{
+  "name": "offpeak-guard",
+  "version": "1.0.0",
+  "description": "DeepSeek peak/off-peak window + reasoning-effort cost guard for DSH: blocks batch work during peak hours, shows live cost, and keeps an auditable ledger.",
+  "type": "module",
+  "main": "./src/offpeak-guard.mjs",
+  "exports": {
+    ".": "./src/offpeak-guard.mjs",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./scan.cjs": "./scripts/scan.cjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/offpeak-guard.mjs",
+    "scripts/scan.cjs",
+    "scripts/cost_report.js",
+    "scripts/offpeak.py",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-bundle",
+    "deepseek",
+    "cost",
+    "off-peak",
+    "budget",
+    "translation"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KLsingDis/offpeak-guard.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node scripts/test.mjs"
+  }
+}
