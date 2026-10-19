@@ -1,7 +1,7 @@
 {
   "name": "yi-jia",
   "version": "1.0.0",
-  "description": "DeepSeek peak/off-peak window + reasoning-effort cost guard for DSH: blocks batch work during peak hours, shows live cost, and keeps an auditable ledger.",
+  "description": "DeepSeek 峰谷时段 + 推理强度双维度成本守卫（DSH 插件）：峰时拦截批量任务、常驻可拖动花费徽标、可对账的成本流水。Off-Peak Guard.",
   "type": "module",
   "main": "./src/yi-jia.mjs",
   "exports": {
@@ -32,20 +32,30 @@
     "dsh",
     "dsh-bundle",
     "deepseek",
+    "deepseek-harness",
     "cost",
+    "cost-guard",
     "off-peak",
     "budget",
-    "translation"
+    "token",
+    "translation",
+    "hanhua"
   ],
   "license": "MIT",
+  "author": "KLsingDis",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/KLsingDis/yi-jia.git"
   },
+  "bugs": {
+    "url": "https://github.com/KLsingDis/yi-jia/issues"
+  },
+  "homepage": "https://github.com/KLsingDis/yi-jia#readme",
   "engines": {
-    "node": ">=22"
+    "node": ">=18"
   },
   "scripts": {
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs",
+    "prepublishOnly": "node scripts/test.mjs"
   }
 }
