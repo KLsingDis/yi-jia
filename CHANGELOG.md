@@ -2,6 +2,19 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.1.0] - 2026-10-20
+
+### 新增
+
+- **多语种支持（zh/en）**：提醒文案、徽标界面、`/cost` 报表全部接入 i18n。语言决定链：`cordis.patch.yml` 配置 `lang` > 环境变量 `YI_JIA_LANG` > 系统区域 > 默认 `zh`。新增语言只需加 `locale/messages.<lang>.json`。
+- **翻译项目限定**：峰时守卫按会话 cwd 过滤（`DSH_COST_GUARD_PROJECTS`，分号分隔，默认 `telegram`），非翻译项目零注入；翻译主会话派生的子代理同样命中。未知 cwd 一律放行（fail-closed）。
+- **测试扩充至 59 项**：i18n 决定链、字典回退、英文提醒/徽标渲染、非翻译项目不注入等。
+
+### 修复
+
+- **v4 会话格式兼容**：注入消息从退役的 `source.kind:'plugin'` 改为 `role`/`id` 齐全的普通用户消息，消除 `format v4 message requires a producer-owned source kind` 报错。
+- **cost_report.js ESM 兼容**：包声明 `"type": "module"` 后改为 ESM 写法。
+
 ## [1.0.0] - 2026-10-20
 
 首个发布版本。

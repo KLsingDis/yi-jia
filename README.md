@@ -44,6 +44,9 @@ DeepSeek 官方计价：**周一至周五（不含法定节假日）09:00–12:0
 
 谷时**不注入**，零开销。同一轮对话内不重复注入。
 
+守卫**只守翻译项目**：按会话工作目录过滤（默认匹配 `telegram` 路径，可用
+`DSH_COST_GUARD_PROJECTS` 圈进更多项目），其他项目一律放行、零打扰。
+
 ### 可拖动徽标
 
 左下角常驻（自动避开界面已有控件），可拖到任意位置，位置与展开状态都会记住。
@@ -74,6 +77,7 @@ DeepSeek 官方计价：**周一至周五（不含法定节假日）09:00–12:0
 node scripts/cost_report.js            # 用现有快照，过期自动刷新
 node scripts/cost_report.js --refresh  # 强制重扫
 node scripts/cost_report.js --json     # 机读
+node scripts/cost_report.js --lang en  # 输出语言（默认走 YI_JIA_LANG 或系统区域）
 ```
 
 ## 安装
@@ -98,12 +102,14 @@ file:///K:/yi-jia
 
 ### 方式 B：手动放置（开发者）
 
-```bash
-# 插件源
-mkdir -p ~/.dsh/profiles/web
-cp src/yi-jia.mjs ~/.dsh/profiles/web/
+插件是多文件结构（入口 + `i18n.cjs` + `locale/*.json`），目录层级要保持：
 
-# 成本扫描器（旧的扁平布局；bundle 安装不需要这步）
+```bash
+mkdir -p ~/.dsh/profiles/web/yi-jia/src ~/.dsh/profiles/web/yi-jia/locale
+cp src/yi-jia.mjs src/i18n.cjs ~/.dsh/profiles/web/yi-jia/src/
+cp locale/*.json ~/.dsh/profiles/web/yi-jia/locale/
+
+# 成本扫描器（bundle 安装不需要这步）
 mkdir -p ~/.dsh/yi-jia
 cp scripts/scan.cjs ~/.dsh/yi-jia/
 ```
@@ -118,7 +124,7 @@ cp scripts/scan.cjs ~/.dsh/yi-jia/
 ```yaml
 - insert:
     - id: yi-jia
-      name: file:///C:/Users/<你的用户名>/.dsh/profiles/web/yi-jia.mjs
+      name: file:///C:/Users/<你的用户名>/.dsh/profiles/web/yi-jia/src/yi-jia.mjs
 ```
 
 > ⚠️ **装错 profile 是头号坑**。表现：插件完全无日志、徽标不出现、status.json 不更新。
@@ -270,19 +276,25 @@ DSH 右上角有模型选择器、设置按钮等控件。默认放左下角，�
 node scripts/test.mjs
 ```
 
-38 项，覆盖：插件注册、峰时注入、谷时/周末不注入、同轮去重、注入行 schema、
-默认落位、点击展开/收起、拖动持久化、拖动不误触发展开、刷新后恢复状态。
+59 项，覆盖：插件注册、峰时注入、谷时/周末不注入、同轮去重、注入行 schema、
+默认落位、点击展开/收起、拖动持久化、拖动不误触发展开、刷新后恢复状态、
+i18n 语言决定链与字典回退、英文提醒/徽标渲染、非翻译项目不注入。
 
 ## 配置项
 
-无配置文件，全部约定：
+插件面板安装后零配置可用；以下均为可选覆盖：
 
-| 常量 | 位置 | 默认值 |
-|---|---|---|
-| `SCAN_INTERVAL_MS` | 插件顶部 | 30 分钟 |
-| `SESSIONS_ROOT` | 插件顶部 | `~/.dsh/sessions` |
-| `GUARD_DIR` | 插件顶部 | `~/.dsh/yi-jia` |
-| `DSH_HOLIDAYS` | 环境变量 | 空 |
+| 配置 | 位置 | 默认值 | 说明 |
+|---|---|---|---|
+| `lang` | profile 的 `cordis.patch.yml`（`yi-jia` 条目的 `config.lang`） | 自动探测 | 界面语言：`zh` / `en` |
+| `YI_JIA_LANG` | 环境变量 | 空 | 次于 `config.lang` 的语言覆盖 |
+| `DSH_COST_GUARD_PROJECTS` | 环境变量 | `telegram` | 守卫生效的 cwd 子串（分号分隔、不区分大小写）；非匹配项目一律放行 |
+| `DSH_HOLIDAYS` | 环境变量 | 空 | 法定节假日（见上节） |
+| `SCAN_INTERVAL_MS` | 插件顶部常量 | 30 分钟 | 后台重扫间隔 |
+| `SESSIONS_ROOT` / `GUARD_DIR` | 插件顶部常量 | `~/.dsh/sessions` / `~/.dsh/yi-jia` | 日志与状态目录 |
+
+语言决定链：`config.lang` > `YI_JIA_LANG` > 系统区域 > `zh`。
+新增语言只需加一个 `locale/messages.<lang>.json`，不改代码。
 
 ## 退出
 

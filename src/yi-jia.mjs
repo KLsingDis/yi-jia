@@ -20,6 +20,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { createT, loadMessages, resolveLang } from './i18n.cjs'
+
+// 界面语言：默认值在 apply() 里按 配置 > 环境变量 > 系统区域 > zh 决定（见 resolvePluginLang）。
+// 模块级默认值保证 apply() 之前（单测直接调 guardMessage 等）也有可用文案。
+let LANG = 'zh'
+let t = createT(LANG)
+let MESSAGES = loadMessages(LANG)
 
 const TZ_OFFSET_MS = 8 * 3600 * 1000
 const SCAN_INTERVAL_MS = 30 * 60 * 1000   // 全量重扫较重，后台 30 分钟一次；要新鲜数据用 cost_report.js --refresh
@@ -156,10 +163,7 @@ function guardMessage() {
   const flip = nextChange(now)
   const when = beijingHM(flip)
   const cd = fmtCountdown(flip)
-  const text =
-    `[成本守卫] 当前北京时间 ${beijingHM(now)} 为峰时（周一至周五 9-12 / 14-18 点，1× 价格；${when} 后转谷时，约 ${cd}）。` +
-    `按汉化工作流约定：峰时不启动翻译/批处理类子代理，只做读写文件、跑脚本、校验等开销低的工作；` +
-    `如确需现在跑批量任务，请先向用户确认。挪到谷时可省 50%。`
+  const text = t('guard.reminder', { time: beijingHM(now), when, countdown: cd })
   // 以普通用户消息进入会话日志：v4 持久化要求 producer-owned source kind，
   // 'plugin' 已退役（会抛 SessionFormatError）；'agent-instructions' 会被指令合成器消费掉，
   // 'runtime-context' 会被循环自己的上下文消息顶替——只有 'user' 能原样送达模型。
@@ -172,12 +176,14 @@ function guardMessage() {
 // 面板状态存 localStorage，刷新页面后保持。
 const BADGE_JS = String.raw`(function(){
 if(window.__DSH_COST_GUARD__)return;window.__DSH_COST_GUARD__=1;
-function cfg(){try{return (window.__CG_BOOT__&&window.__CG_BOOT__())||{holidays:[],status:null};}catch(e){return {holidays:[],status:null};}}
+function cfg(){try{return (window.__CG_BOOT__&&window.__CG_BOOT__())||{holidays:[],status:null,messages:{}};}catch(e){return {holidays:[],status:null,messages:{}};}}
+// 文案查表：字典由宿主脚本经 __CG_BOOT__.messages 注入，缺 key 时返回 key 本身便于发现漏翻。
+function S(key,vars){var m=cfg().messages||{};var s=m[key];if(typeof s!=='string')return key;if(vars)s=s.replace(/\{(\w+)\}/g,function(mm,k){return vars[k]!=null?String(vars[k]):mm;});return s;}
 function bj(ms){return new Date((ms==null?Date.now():ms)+8*3600e3);}
 function hol(d){return (cfg().holidays||[]).indexOf(d)>=0;}
 function isPeak(ms){var d=bj(ms),w=d.getUTCDay(),h=d.getUTCHours();if(w===0||w===6)return false;if(hol(d.toISOString().slice(0,10)))return false;return (h>=9&&h<12)||(h>=14&&h<18);}
 function next(ms){var cur=isPeak(ms),p=bj(ms);p.setSeconds(0,0);p=p.getTime()+6e4;for(var i=0;i<8*24*60;i++,p+=6e4){if(isPeak(p)!==cur)return p-8*3600e3;}return p-8*3600e3;}
-function cd(ms){var m=Math.max(0,Math.round((ms-Date.now())/6e4)),d=Math.floor(m/1440),h=Math.floor(m%1440/60),mm=m%60;return d>0?d+'天'+h+'小时':(h>0?h+'小时'+mm+'分':mm+'分钟');}
+function cd(ms){var m=Math.max(0,Math.round((ms-Date.now())/6e4)),d=Math.floor(m/1440),h=Math.floor(m%1440/60),mm=m%60;if(d>0)return S('badge.cdDay',{d:d,h:h});if(h>0)return S('badge.cdHour',{h:h,mm:mm});return S('badge.cdMin',{mm:mm});}
 function p2(n){return (n<10?'0':'')+n;}
 function hm(ms){var d=bj(ms);return p2(d.getUTCHours())+':'+p2(d.getUTCMinutes());}
 function ymd(ms){var d=bj(ms);return p2(d.getUTCMonth()+1)+'-'+p2(d.getUTCDate());}
@@ -213,26 +219,26 @@ function row(t,label,val,em){var r=mk('div','display:flex;justify-content:space-
   var v=mk('span',(em?'font-weight:700':'')+';font-variant-numeric:tabular-nums',val);r.appendChild(v);t.appendChild(r);return r;}
 function detail(st,now,peak,flip){
   var d=mk('div','margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.28);text-align:left;');
-  if(!st||!st.cost){d.appendChild(mk('div','opacity:.8','成本快照不可用（后台扫描尚未完成）'));return d;}
+  if(!st||!st.cost){d.appendChild(mk('div','opacity:.8',S('badge.snapshotPending')));return d;}
   var c=st.cost,t=st.totals||{};
-  d.appendChild(mk('div','font-weight:700;margin-bottom:3px','成本（'+st.model+'）'));
-  row(d,'实际（混合时段）',yuan(c.actualMixed),true);
-  row(d,'若全部谷时',yuan(c.allIdle)+'（省 '+yuan(c.actualMixed-c.allIdle)+'）');
-  row(d,'若全部高峰',yuan(c.allPeak));
-  row(d,'v4-pro 全谷 / 全峰',yuan(c.proIdle)+' / '+yuan(c.proPeak));
-  d.appendChild(mk('div','opacity:.8;margin:6px 0 3px','用量'));
-  row(d,'调用次数',String(st.calls||0));
-  row(d,'输入·未命中',mt(t.miss));
-  row(d,'输入·缓存命中',mt(t.hit));
-  row(d,'输出（含思考）',mt(t.out));
+  d.appendChild(mk('div','font-weight:700;margin-bottom:3px',S('badge.costTitle',{model:st.model})));
+  row(d,S('badge.actualMixed'),yuan(c.actualMixed),true);
+  row(d,S('badge.allIdle'),yuan(c.allIdle)+S('badge.saveSuffix',{amount:yuan(c.actualMixed-c.allIdle)}));
+  row(d,S('badge.allPeak'),yuan(c.allPeak));
+  row(d,S('badge.proRef'),yuan(c.proIdle)+' / '+yuan(c.proPeak));
+  d.appendChild(mk('div','opacity:.8;margin:6px 0 3px',S('badge.usage')));
+  row(d,S('badge.calls'),String(st.calls||0));
+  row(d,S('badge.inputMiss'),mt(t.miss));
+  row(d,S('badge.inputHit'),mt(t.hit));
+  row(d,S('badge.output'),mt(t.out));
   var tot=(t.hit||0)+(t.miss||0);
-  row(d,'缓存命中率',tot?((t.hit/tot*100).toFixed(1)+'%'):'—');
+  row(d,S('badge.hitRate'),tot?((t.hit/tot*100).toFixed(1)+'%'):'—');
   var pc=(st.peakT&&st.peakT.calls)||0,ic=(st.idleT&&st.idleT.calls)||0,ac=pc+ic;
-  row(d,'峰/谷调用占比',ac?((pc/ac*100).toFixed(0)+'% / '+(ic/ac*100).toFixed(0)+'%'):'—');
+  row(d,S('badge.share'),ac?((pc/ac*100).toFixed(0)+'% / '+(ic/ac*100).toFixed(0)+'%'):'—');
   if(st.perDay){
     var days=Object.keys(st.perDay).sort().slice(-5);
     if(days.length){
-      d.appendChild(mk('div','opacity:.8;margin:6px 0 3px','最近 5 天'));
+      d.appendChild(mk('div','opacity:.8;margin:6px 0 3px',S('badge.recentDays')));
       var F=(st.pricing&&st.pricing['deepseek-flash'])||null;
       for(var i=0;i<days.length;i++){
         var k=days[i],x=st.perDay[k],fee='—';
@@ -241,16 +247,14 @@ function detail(st,now,peak,flip){
           fee=yuan((x.pkMiss||0)/M*F.peak.miss+(x.pkHit||0)/M*F.peak.hit+(x.pkOut||0)/M*F.peak.out
                  +((x.miss-(x.pkMiss||0))/M*F.idle.miss)+((x.hit-(x.pkHit||0))/M*F.idle.hit)+((x.out-(x.pkOut||0))/M*F.idle.out));
         }
-        row(d,k+'  '+x.calls+' 次',fee);
+        row(d,S('badge.dayCalls',{date:k,count:x.calls}),fee);
       }
     }
   }
-  d.appendChild(mk('div','opacity:.8;margin:6px 0 3px','规则'));
-  d.appendChild(mk('div','font-size:10px;opacity:.85;line-height:1.45',
-    '峰时=周一至周五（不含法定节假日）09-12 / 14-18，其余含周末节假日全天为谷时（0.5×）。'+
-    '推理强度：批量首翻 off、术语/审校 low、疑难句 high；思考内容按输出计费。'));
+  d.appendChild(mk('div','opacity:.8;margin:6px 0 3px',S('badge.rules')));
+  d.appendChild(mk('div','font-size:10px;opacity:.85;line-height:1.45',S('badge.ruleText')));
   if(st.generatedAt){
-    d.appendChild(mk('div','font-size:10px;opacity:.7;margin-top:5px','快照 '+ymd(Date.parse(st.generatedAt))+' '+hm(Date.parse(st.generatedAt))+' · 刷新页面更新'));
+    d.appendChild(mk('div','font-size:10px;opacity:.7;margin-top:5px',S('badge.snapshotAt',{date:ymd(Date.parse(st.generatedAt)),time:hm(Date.parse(st.generatedAt))})));
   }
   return d;
 }
@@ -262,19 +266,19 @@ function render(){
     'padding:6px 9px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.35);max-width:300px;'+
     'text-align:right;cursor:grab;user-select:none;transition:background .2s;opacity:.96;';
   box.style.background=peak?'#c0392b':'#1e8449';
-  box.title='点击展开详情 · 按住可拖动到别处';
+  box.title=S('badge.title');
 
   var head=mk('div','display:flex;align-items:center;justify-content:flex-end;gap:6px;');
-  head.appendChild(mk('span','font-weight:700',(peak?'🔴 峰时 1×':'🟢 谷时 0.5×')));
-  head.appendChild(mk('span','opacity:.9','北京 '+hm(now)));
+  head.appendChild(mk('span','font-weight:700',S(peak?'badge.peak':'badge.offpeak')));
+  head.appendChild(mk('span','opacity:.9',S('badge.clock',{time:hm(now)})));
   head.appendChild(mk('span','opacity:.65;font-size:10px',open?'▾':'▸'));
   box.appendChild(head);
-  box.appendChild(mk('div','opacity:.92;font-size:11px','下次切换 '+hm(flip)+'（约 '+cd(flip)+'）'));
+  box.appendChild(mk('div','opacity:.92;font-size:11px',S('badge.nextSwitch',{time:hm(flip),countdown:cd(flip)})));
   if(st&&st.cost){
-    box.appendChild(mk('div','opacity:.92;font-size:11px','实付 '+yuan(st.cost.actualMixed)+' · 全谷 '+yuan(st.cost.allIdle)+' · 全峰 '+yuan(st.cost.allPeak)));
-    if(!open)box.appendChild(mk('div','opacity:.65;font-size:10px','点击展开 · 可拖动'));
+    box.appendChild(mk('div','opacity:.92;font-size:11px',S('badge.costLine',{actual:yuan(st.cost.actualMixed),idle:yuan(st.cost.allIdle),peak:yuan(st.cost.allPeak)})));
+    if(!open)box.appendChild(mk('div','opacity:.65;font-size:10px',S('badge.expandHint')));
   }else{
-    box.appendChild(mk('div','opacity:.75;font-size:10px','成本快照不可用'));
+    box.appendChild(mk('div','opacity:.75;font-size:10px',S('badge.noSnapshot')));
   }
   if(open)box.appendChild(detail(st,now,peak,flip));
 
@@ -366,11 +370,13 @@ setInterval(function(){
 })();`
 
 // global 行的 value 必须是字符串（会被渲染成赋值表达式），返回一个惰性 IIFE 供页面取用。
+// 顺带把当前语言的文案字典注入页面（徽标脚本经 __CG_BOOT__.messages 查表渲染）。
 function badgeGlobalScript() {
   const st = readStatus()
   const hol = JSON.stringify([...HOLIDAYS])
   const status = st ? JSON.stringify(st).replace(/</g, '\\u003c') : 'null'
-  return '(function(){var H=' + hol + ';var S=' + status + ';return function(){return {holidays:H,status:S};};})()'
+  const messages = JSON.stringify(MESSAGES).replace(/</g, '\\u003c')
+  return '(function(){var H=' + hol + ';var S=' + status + ';var M=' + messages + ';return function(){return {holidays:H,status:S,messages:M};};})()'
 }
 
 // ---- apply ----
@@ -383,8 +389,21 @@ function log(msg) {
   } catch (e) {}
 }
 
-export function apply(ctx) {
+export function apply(ctx, config) {
   log('apply() entered; pid=' + process.pid)
+  // 界面语言决定链：cordis 配置 lang > 环境变量 YI_JIA_LANG > 系统区域 > 默认 zh。
+  // 未声明 Config schema 时 cordis 把 config 原样传入（resolveConfig 无 schema 直通）。
+  try {
+    LANG = resolveLang([
+      config && config.lang,
+      process.env.YI_JIA_LANG,
+      () => Intl.DateTimeFormat().resolvedOptions().locale,
+      'zh',
+    ])
+    t = createT(LANG)
+    MESSAGES = loadMessages(LANG)
+    log('lang=' + LANG)
+  } catch (e) { log('lang resolve FAILED: ' + (e && e.message)) }
   try { startScanner(); log('scanner started (node=' + (findNode() || 'MISSING') + ')') }
   catch (e) { log('scanner FAILED: ' + (e && e.message)) }
 

@@ -52,6 +52,8 @@ const ctx = {
 }
 
 const mod = await import('file:///' + PLUGIN.replace(/\\/g, '/'))
+// 测试默认值必须是中文：环境变量优先于系统区域，避免测试机系统语言影响断言
+process.env.YI_JIA_LANG = 'zh'
 mod.apply(ctx)
 
 let pass = 0, fail = 0
@@ -103,6 +105,41 @@ Date.now = () => Date.UTC(2026, 9, 17, 2, 0, 0)
 const u3 = { role: 'user', id: 'u3', content: [{ type: 'text', text: '周末翻译' }] }
 d = await preStep({ agent: agentFor(TR_PROJECT), messages: [u3] }, () => next([u3]))
 ok(d.messages.length === 1, 'weekend: no injection (off-peak)')
+
+Date.now = realNow
+
+// --- i18n 单元：语言决定链与字典回退 ---
+const i18n = await import('file:///' + path.join(HERE, '..', 'src', 'i18n.cjs').replace(/\\/g, '/'))
+ok(i18n.normalizeLang('zh-CN') === 'zh' && i18n.normalizeLang('EN-us') === 'en' && i18n.normalizeLang('fr') === null,
+   'i18n: normalizeLang zh/en/unknown')
+ok(i18n.resolveLang([null, undefined, 'en-US']) === 'en', 'i18n: resolveLang skips empty, honors priority')
+ok(i18n.resolveLang([() => { throw new Error('boom') }, 'zh']) === 'zh', 'i18n: lazy probe failure skipped')
+ok(i18n.resolveLang([]) === 'zh', 'i18n: fallback zh')
+const tEn = i18n.createT('en')
+ok(tEn('badge.peak') === '🔴 Peak 1×', 'i18n: en dictionary lookup')
+ok(tEn('badge.nextSwitch', { time: '12:00', countdown: '1h 30m' }).includes('Next switch 12:00'), 'i18n: {var} interpolation')
+ok(tEn('totally.missing') === 'totally.missing', 'i18n: missing key returns key')
+ok(i18n.createT('fr')('badge.peak') === '🔴 峰时 1×', 'i18n: unsupported lang falls back to zh')
+
+// --- 语言决定链：cordis config.lang 优先，其次 YI_JIA_LANG ---
+Date.now = () => Date.UTC(2026, 9, 19, 2, 0, 0)   // peak
+const uEn = { role: 'user', id: 'u-en', content: [{ type: 'text', text: 'translate batch' }] }
+mod.apply({ on(ev, fn) { if (ev === 'agent/pre-step') preStep = fn }, inject() {} }, { lang: 'en' })
+d = await preStep({ agent: agentFor(TR_PROJECT), messages: [uEn] }, () => next([uEn]))
+ok(d.messages.length === 2 && /Cost Guard/.test(d.messages[1].content[0].text), 'lang=en (config): reminder in English')
+ok(d.messages[1].content[0].text.includes('off-peak'), 'lang=en (config): mentions off-peak')
+
+process.env.YI_JIA_LANG = 'en'
+const uEnv = { role: 'user', id: 'u-env', content: [{ type: 'text', text: 'batch now' }] }
+mod.apply({ on(ev, fn) { if (ev === 'agent/pre-step') preStep = fn }, inject() {} })   // no config → env wins
+d = await preStep({ agent: agentFor(TR_PROJECT), messages: [uEnv] }, () => next([uEnv]))
+ok(d.messages.length === 2 && /Cost Guard/.test(d.messages[1].content[0].text), 'lang from YI_JIA_LANG when no config')
+// 恢复中文并重建徽标注入（先改 env 再 apply，apply 会把 MESSAGES 重置为 zh）
+process.env.YI_JIA_LANG = 'zh'
+mod.apply({
+  on(ev, fn) { if (ev === 'agent/pre-step') preStep = fn },
+  inject(deps, fn) { fn({ effect(f) { f() }, on(ev, f2) { if (ev === 'webserver/index-inject') injectListener = f2 } }) },
+})
 
 Date.now = realNow
 
@@ -184,6 +221,7 @@ try {
   const cfg = win.__CG_BOOT__()
   ok(Array.isArray(cfg.holidays) && 'status' in cfg, 'config shape {holidays,status}')
   ok(cfg.status && cfg.status.cost, 'config carries cost snapshot')
+  ok(cfg.messages && typeof cfg.messages['badge.peak'] === 'string', 'config carries message dictionary')
 
   // --- collapsed state ---
   eval(s.text)
@@ -244,6 +282,28 @@ try {
   ok(badge.style.left === '321px' && badge.style.top === '456px',
      'persistence: restores saved position (got ' + badge.style.left + ',' + badge.style.top + ')')
 } catch (e) { ok(false, 'eval threw: ' + e.message) }
+
+// --- 徽标按注入字典渲染英文 ---
+try {
+  store['yi-jia-open'] = '0'
+  let injectEn = null
+  mod.apply({
+    on(ev, fn) { if (ev === 'agent/pre-step') preStep = fn },
+    inject(deps, fn) { fn({ effect(f) { f() }, on(ev, f2) { if (ev === 'webserver/index-inject') injectEn = f2 } }) },
+  }, { lang: 'en' })
+  const tableEn = []
+  injectEn(tableEn)
+  const gEn = tableEn.find(r => r.kind === 'global')
+  const sEn = tableEn.find(r => r.kind === 'script')
+  win.__CG_BOOT__ = eval(gEn.value)
+  delete win.__DSH_COST_GUARD__
+  bodyEl = makeEl('body')
+  eval(sEn.text)
+  const badgeEn = bodyEl.children.find(c => c.id === 'yi-jia-badge')
+  ok(!!badgeEn && /(Peak|Off-peak) 1?×?/.test(badgeEn.textContent), 'badge en: window label in English')
+  ok(/Paid ¥/.test(badgeEn.textContent), 'badge en: cost line in English')
+  ok(!/谷时|峰时|实付/.test(badgeEn.textContent), 'badge en: no Chinese UI strings')
+} catch (e) { ok(false, 'badge en eval threw: ' + e.message) }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed')
 process.exit(fail ? 1 : 0)
