@@ -63,27 +63,45 @@ ok(typeof injectListener === 'function', 'webserver/index-inject listener regist
 
 const realNow = Date.now
 
+// payload 里的 agent（官方 pre-step 载荷自带）；cwd 决定守卫是否对该会话生效
+const agentFor = (cwd) => ({ session: { header: { cwd } } })
+const TR_PROJECT = 'K:/telegram/telelgram/some-game'
+
 // --- Peak: Mon 2026-10-19 10:00 Beijing = UTC 02:00 ---
 Date.now = () => Date.UTC(2026, 9, 19, 2, 0, 0)
 const u1 = { role: 'user', id: 'u1', content: [{ type: 'text', text: '批量翻译' }] }
-let d = await preStep({ messages: [u1] }, () => next([u1]))
+let d = await preStep({ agent: agentFor(TR_PROJECT), messages: [u1] }, () => next([u1]))
 ok(d.messages.length === 2, 'peak: guard message appended')
 ok(/峰时/.test(d.messages[1].content[0].text), 'peak: mentions 峰时')
 ok(d.messages[1].source.plugin === 'yi-jia', 'peak: plugin-tagged')
+ok(d.messages[1].source.kind === 'user', 'peak: v4-safe source kind (user, not retired plugin)')
+ok(typeof d.messages[1].id === 'string' && d.messages[1].id.length > 0, 'peak: message has id')
+ok(d.messages[1].role === 'user', 'peak: message has role')
 
-d = await preStep({ messages: [u1] }, () => next([u1]))
+d = await preStep({ agent: agentFor(TR_PROJECT), messages: [u1] }, () => next([u1]))
 ok(d.messages.length === 1, 'peak: same turn deduped')
+
+// --- Peak but NOT a translation project: pass through untouched ---
+const uBiz = { role: 'user', id: 'ub', content: [{ type: 'text', text: '整理表格' }] }
+d = await preStep({ agent: agentFor('C:/Users/KLsing/Documents/chatlog'), messages: [uBiz] }, () => next([uBiz]))
+ok(d.messages.length === 1, 'peak non-project: no injection (not a translation cwd)')
+
+// --- Peak with unknown cwd (no agent / no header): fail closed, no injection ---
+d = await preStep({ messages: [uBiz] }, () => next([uBiz]))
+ok(d.messages.length === 1, 'peak unknown cwd: no injection (fail closed)')
+d = await preStep({ agent: agentFor(undefined), messages: [uBiz] }, () => next([uBiz]))
+ok(d.messages.length === 1, 'peak undefined cwd: no injection (fail closed)')
 
 // --- Off-peak: Mon 2026-10-19 23:00 Beijing = UTC 15:00 ---
 Date.now = () => Date.UTC(2026, 9, 19, 15, 0, 0)
 const u2 = { role: 'user', id: 'u2', content: [{ type: 'text', text: '继续' }] }
-d = await preStep({ messages: [u2] }, () => next([u2]))
+d = await preStep({ agent: agentFor(TR_PROJECT), messages: [u2] }, () => next([u2]))
 ok(d.messages.length === 1, 'off-peak: no injection')
 
 // --- Weekend: Sat 2026-10-17 10:00 Beijing ---
 Date.now = () => Date.UTC(2026, 9, 17, 2, 0, 0)
 const u3 = { role: 'user', id: 'u3', content: [{ type: 'text', text: '周末翻译' }] }
-d = await preStep({ messages: [u3] }, () => next([u3]))
+d = await preStep({ agent: agentFor(TR_PROJECT), messages: [u3] }, () => next([u3]))
 ok(d.messages.length === 1, 'weekend: no injection (off-peak)')
 
 Date.now = realNow

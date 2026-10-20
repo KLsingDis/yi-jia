@@ -3,6 +3,9 @@
 // 功能：
 //  1) agent/pre-step 守卫：北京峰时（周一至周五 9-12 / 14-18，不含法定节假日）在每一轮
 //     用户请求开始时注入一条提醒——峰时不启动翻译/批量子代理，只做便宜活；谷时不注入（零开销）。
+//     仅对翻译项目生效：按会话 cwd 过滤（见 PROJECT_MARKERS / DSH_COST_GUARD_PROJECTS），
+//     其他项目一律放行、零注入。注入消息为普通 user/message（v4 已退役 source.kind:'plugin'，
+//     再用会以 "format v4 message requires a producer-owned source kind" 被拒并中断会话）。
 //  2) Web GUI 徽标：可拖动、点击展开的浮层，显示当前窗口（峰/谷 + 倍率 + 倒计时）、
 //     成本三口径对比、缓存命中率、峰谷调用占比、最近 5 天按天费用。
 //  3) 后台成本扫描：定期拉起外部运行时 node 运行 scan.cjs，汇总会话日志 token 用量并写
@@ -132,6 +135,20 @@ function userSig(m) {
   const txt = Array.isArray(m.content) ? m.content.map(c => (c && c.text) || '').join('') : String(m.content || '')
   return 't:' + txt.length + ':' + txt.slice(0, 80)
 }
+// 项目范围：只在翻译项目里注入提醒，绝不全局限制其他任务。
+// DSH_COST_GUARD_PROJECTS 可覆盖（分号分隔的 cwd 子串，不区分大小写，'\' 与 '/' 等价）；
+// 子代理会话继承工作区 cwd，翻译主会话派生的翻译子代理同样命中。
+const PROJECT_MARKERS = (process.env.DSH_COST_GUARD_PROJECTS || 'telegram')
+  .split(';').map(s => s.trim().toLowerCase().replace(/\\/g, '/')).filter(Boolean)
+function isGuardedProject(cwd) {
+  if (!cwd || !PROJECT_MARKERS.length) return false
+  const p = String(cwd).replace(/\\/g, '/').toLowerCase()
+  return PROJECT_MARKERS.some(m => p.includes(m))
+}
+function newId() {
+  try { return crypto.randomUUID() } catch (e) { return 'cg-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10) }
+}
+
 function guardMessage() {
   const now = Date.now()
   const peak = isPeak(now)
@@ -143,7 +160,10 @@ function guardMessage() {
     `[成本守卫] 当前北京时间 ${beijingHM(now)} 为峰时（周一至周五 9-12 / 14-18 点，1× 价格；${when} 后转谷时，约 ${cd}）。` +
     `按汉化工作流约定：峰时不启动翻译/批处理类子代理，只做读写文件、跑脚本、校验等开销低的工作；` +
     `如确需现在跑批量任务，请先向用户确认。挪到谷时可省 50%。`
-  return { source: { kind: 'plugin', plugin: 'yi-jia', form: 'window-guard' }, content: [{ type: 'text', text }] }
+  // 以普通用户消息进入会话日志：v4 持久化要求 producer-owned source kind，
+  // 'plugin' 已退役（会抛 SessionFormatError）；'agent-instructions' 会被指令合成器消费掉，
+  // 'runtime-context' 会被循环自己的上下文消息顶替——只有 'user' 能原样送达模型。
+  return { role: 'user', id: newId(), source: { kind: 'user', plugin: 'yi-jia', form: 'window-guard' }, content: [{ type: 'text', text }] }
 }
 
 // ---- 2) web badge via webserver/index-inject ----
@@ -369,23 +389,28 @@ export function apply(ctx) {
   catch (e) { log('scanner FAILED: ' + (e && e.message)) }
 
   try {
-    ctx.on('agent/pre-step', async ({ messages }, next) => {
+    ctx.on('agent/pre-step', async ({ agent, messages }, next) => {
+      const decision = await next()
       try {
-        const decision = await next()
         if (!decision || decision.kind === 'reject') return decision
         if (!Array.isArray(decision.messages)) return decision
+        // 项目范围限制：payload 带 agent（官方内置插件同款用法），非翻译项目直接放行
+        const cwd = agent && agent.session && agent.session.header && agent.session.header.cwd
+        if (!isGuardedProject(cwd)) return decision
         const um = lastUserMessage(decision.messages)
-        const sig = userSig(um)
-        if (!sig || sig === lastUserSig) return decision
+        if (!um) return decision
+        const sig = String(cwd) + '|' + userSig(um)
+        if (sig === lastUserSig) return decision
         const gm = guardMessage()               // 仅峰时返回提醒；谷时返回 null
         if (!gm) { lastUserSig = sig; return decision }
         lastUserSig = sig
         return { ...decision, messages: [...decision.messages, gm] }
       } catch (e) {
-        try { return await next() } catch (e2) { throw e2 }
+        log('pre-step guard FAILED: ' + (e && e.message))
+        return decision
       }
     })
-    log('agent/pre-step hook registered')
+    log('agent/pre-step hook registered (projects: ' + PROJECT_MARKERS.join('; ') + ')')
   } catch (e) {
     log('pre-step hook FAILED: ' + (e && e.message))
   }
