@@ -2,6 +2,19 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.2.0] - 2026-10-20
+
+### 新增
+
+- **游戏引擎档案库**（`src/games.cjs`）：声明式档案（识别签名 + 双语注意事项 + 推理强度建议），
+  设计借鉴 GalTransl / AiNiee / SExtractor 的多类型支持模式（见 `docs/game-profiles-plan.md`）。
+  首期 6 个引擎：RPG Maker MZ/MV、Kirikiri/KAG、RenPy、Livemaker、Wolf RPG Editor、Unity（含 UTAGE）。
+- **引擎感知的峰时提醒**：守卫识别会话工作目录的引擎后，在提醒尾部追加该引擎的成本/质量注意事项
+  与建议档位（如 RPG Maker 的控制符保护、Kirikiri 的编码路线）。识别只影响提醒内容，认错无害；
+  检测分层（精确路径 → 顶层文件名/扩展名 → 浅层扩展名），未命中不猜。
+- **测试扩充至 74 项**：引擎识别（真实临时目录造标记）、档案完整性、引擎行中英文注入、
+  无引擎时提醒与 v1.1 一致。
+
 ## [1.1.0] - 2026-10-20
 
 ### 新增

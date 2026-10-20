@@ -1,5 +1,6 @@
 {
   "guard.reminder": "[Cost Guard] It is now {time} Beijing time — PEAK pricing (Mon–Fri 9:00–12:00 / 14:00–18:00, 1×; off-peak starts at {when}, in about {countdown}). Per the localization workflow: don't launch translation/batch subagents during peak hours; stick to low-cost work like file edits, scripts and checks. If a batch task must run now, confirm with the user first. Moving it to off-peak saves 50%.",
+  "guard.engineLine": "[{engine}] {notes} Suggested effort: {effort}",
 
   "badge.peak": "🔴 Peak 1×",
   "badge.offpeak": "🟢 Off-peak 0.5×",

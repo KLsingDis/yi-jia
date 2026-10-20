@@ -36,7 +36,15 @@ fs.readFileSync = function (file, ...rest) {
   }
   return realReadFileSync.call(fs, file, ...rest)
 }
-fs.existsSync = () => true
+// 智能 stub：status.json 恒存在（注入快照）；scan.cjs 恒不存在（阻止测试真拉起扫描器）；
+// 其余路径（含 games.cjs 的引擎标记检测）走真实文件系统——测试会造真实临时目录做识别。
+const realExistsSync = fs.existsSync
+fs.existsSync = (p) => {
+  const s = typeof p === 'string' ? p.replace(/\\/g, '/') : ''
+  if (s.endsWith('/yi-jia/status.json')) return true
+  if (s.endsWith('/scan.cjs')) return false
+  return realExistsSync(p)
+}
 
 let preStep = null
 let injectListener = null
@@ -134,8 +142,62 @@ const uEnv = { role: 'user', id: 'u-env', content: [{ type: 'text', text: 'batch
 mod.apply({ on(ev, fn) { if (ev === 'agent/pre-step') preStep = fn }, inject() {} })   // no config → env wins
 d = await preStep({ agent: agentFor(TR_PROJECT), messages: [uEnv] }, () => next([uEnv]))
 ok(d.messages.length === 2 && /Cost Guard/.test(d.messages[1].content[0].text), 'lang from YI_JIA_LANG when no config')
-// 恢复中文并重建徽标注入（先改 env 再 apply，apply 会把 MESSAGES 重置为 zh）
+// 恢复中文默认（env 归位 + 重新 apply，让模块级 t/MESSAGES 回到 zh）
 process.env.YI_JIA_LANG = 'zh'
+mod.apply({ on(ev, fn) { if (ev === 'agent/pre-step') preStep = fn }, inject() {} })
+// --- 游戏引擎档案：detectGame 分层识别（档案驱动，见 docs/game-profiles-plan.md） ---
+const games = await import('file:///' + path.join(HERE, '..', 'src', 'games.cjs').replace(/\\/g, '/'))
+function fixtureGameDir(setup) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gj-'))
+  setup(dir)
+  const hit = games.detectGame(dir)
+  games.resetDetectCache()
+  fs.rmSync(dir, { recursive: true, force: true })
+  return hit
+}
+ok(fixtureGameDir(d => { fs.mkdirSync(path.join(d, 'js'), { recursive: true }); fs.writeFileSync(path.join(d, 'js', 'rmmz_managers.js'), '') })?.id === 'rpgmaker',
+   'detect: rpgmaker via js/rmmz_managers.js')
+ok(fixtureGameDir(d => fs.writeFileSync(path.join(d, 'game.rmmzproject'), '{}'))?.id === 'rpgmaker',
+   'detect: rpgmaker via .rmmzproject')
+ok(fixtureGameDir(d => { fs.mkdirSync(path.join(d, 'scenario'), { recursive: true }); fs.writeFileSync(path.join(d, 'scenario', 'main.ks'), '') })?.id === 'kirikiri',
+   'detect: kirikiri via shallow .ks')
+ok(fixtureGameDir(d => { fs.mkdirSync(path.join(d, 'game'), { recursive: true }); fs.writeFileSync(path.join(d, 'game', 'script.rpy'), '') })?.id === 'renpy',
+   'detect: renpy via shallow .rpy')
+ok(fixtureGameDir(d => { fs.mkdirSync(path.join(d, 'sub'), { recursive: true }); fs.writeFileSync(path.join(d, 'sub', 'a.lns'), '') })?.id === 'livemaker',
+   'detect: livemaker via shallow .lns')
+ok(fixtureGameDir(d => fs.writeFileSync(path.join(d, 'Data.wolf'), ''))?.id === 'wolf',
+   'detect: wolf via Data.wolf')
+ok(fixtureGameDir(d => fs.writeFileSync(path.join(d, 'UnityPlayer.dll'), ''))?.id === 'unity',
+   'detect: unity via UnityPlayer.dll')
+ok(fixtureGameDir(d => { fs.mkdirSync(path.join(d, 'Game_Data'), { recursive: true }); fs.writeFileSync(path.join(d, 'Game_Data', 'globalgamemanagers'), '') })?.id === 'unity',
+   'detect: unity via *_Data/globalgamemanagers')
+ok(fixtureGameDir(d => {}) === null, 'detect: empty dir → null (no guess)')
+ok(games.detectGame('Z:/definitely-not-exist-yi-jia') === null, 'detect: nonexistent path → null')
+ok(games.GAMES.every(g => g.id && g.name.zh && g.name.en && g.notes.zh && g.notes.en && g.effort.zh && g.effort.en && g.markers.length),
+   'registry: every profile is complete (bilingual name/notes/effort + markers)')
+
+// --- 引擎注意事项注入：峰时提醒尾部带【引擎】行（识别只影响提醒，认错无害） ---
+// 造一个真实存在的"翻译项目"目录：路径含 telegram（命中守卫范围）+ MZ 标记（命中引擎档案）
+const tmpGameRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'telegram-'))
+fs.mkdirSync(path.join(tmpGameRoot, 'js'), { recursive: true })
+fs.writeFileSync(path.join(tmpGameRoot, 'js', 'rmmz_managers.js'), '')
+Date.now = () => Date.UTC(2026, 9, 19, 2, 0, 0)   // peak
+const uG = { role: 'user', id: 'u-g', content: [{ type: 'text', text: '翻译剧情文本' }] }
+d = await preStep({ agent: agentFor(tmpGameRoot), messages: [uG] }, () => next([uG]))
+ok(d.messages.length === 2 && /RPG Maker MZ\/MV/.test(d.messages[1].content[0].text), 'engine line: RPG Maker identified')
+ok(/建议档位/.test(d.messages[1].content[0].text) && /控制符/.test(d.messages[1].content[0].text), 'engine line: notes + effort present')
+// 翻译项目但无引擎标记（路径不存在）→ 提醒与 v1.1 一致，没有引擎行
+const uN = { role: 'user', id: 'u-n', content: [{ type: 'text', text: '翻译' }] }
+d = await preStep({ agent: agentFor(TR_PROJECT), messages: [uN] }, () => next([uN]))
+ok(d.messages.length === 2 && !/【/.test(d.messages[1].content[0].text), 'engine line: absent when no engine detected')
+// 英文界面下引擎行全英文
+mod.apply({ on(ev, fn) { if (ev === 'agent/pre-step') preStep = fn }, inject() {} }, { lang: 'en' })
+const uGe = { role: 'user', id: 'u-ge', content: [{ type: 'text', text: 'translate story' }] }
+d = await preStep({ agent: agentFor(tmpGameRoot), messages: [uGe] }, () => next([uGe]))
+ok(d.messages.length === 2 && /\[RPG Maker MZ\/MV\]/.test(d.messages[1].content[0].text) && /Suggested effort/.test(d.messages[1].content[0].text),
+   'engine line: English when lang=en')
+fs.rmSync(tmpGameRoot, { recursive: true, force: true })
+// 恢复中文（重建徽标注入）
 mod.apply({
   on(ev, fn) { if (ev === 'agent/pre-step') preStep = fn },
   inject(deps, fn) { fn({ effect(f) { f() }, on(ev, f2) { if (ev === 'webserver/index-inject') injectListener = f2 } }) },

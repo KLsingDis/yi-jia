@@ -21,6 +21,10 @@ import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { createT, loadMessages, resolveLang } from './i18n.cjs'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+const { detectGame } = require('./games.cjs')
 
 // 界面语言：默认值在 apply() 里按 配置 > 环境变量 > 系统区域 > zh 决定（见 resolvePluginLang）。
 // 模块级默认值保证 apply() 之前（单测直接调 guardMessage 等）也有可用文案。
@@ -156,14 +160,23 @@ function newId() {
   try { return crypto.randomUUID() } catch (e) { return 'cg-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10) }
 }
 
-function guardMessage() {
+function guardMessage(game) {
   const now = Date.now()
   const peak = isPeak(now)
   if (!peak) return null                    // 谷时不注入，零开销
   const flip = nextChange(now)
   const when = beijingHM(flip)
   const cd = fmtCountdown(flip)
-  const text = t('guard.reminder', { time: beijingHM(now), when, countdown: cd })
+  let text = t('guard.reminder', { time: beijingHM(now), when, countdown: cd })
+  // 引擎档案命中：附上该引擎的注意事项与推理强度建议（识别只影响提醒内容，认错无害）
+  if (game) {
+    const lang = LANG in { zh: 1, en: 1 } ? LANG : 'zh'
+    text += '\n' + t('guard.engineLine', {
+      engine: game.name[lang] || game.name.zh,
+      notes: game.notes[lang] || game.notes.zh,
+      effort: game.effort[lang] || game.effort.zh,
+    })
+  }
   // 以普通用户消息进入会话日志：v4 持久化要求 producer-owned source kind，
   // 'plugin' 已退役（会抛 SessionFormatError）；'agent-instructions' 会被指令合成器消费掉，
   // 'runtime-context' 会被循环自己的上下文消息顶替——只有 'user' 能原样送达模型。
@@ -420,7 +433,7 @@ export function apply(ctx, config) {
         if (!um) return decision
         const sig = String(cwd) + '|' + userSig(um)
         if (sig === lastUserSig) return decision
-        const gm = guardMessage()               // 仅峰时返回提醒；谷时返回 null
+        const gm = guardMessage(detectGame(cwd))   // 仅峰时返回提醒；谷时返回 null。命中引擎档案则附注意事项。
         if (!gm) { lastUserSig = sig; return decision }
         lastUserSig = sig
         return { ...decision, messages: [...decision.messages, gm] }

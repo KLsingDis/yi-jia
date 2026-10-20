@@ -1,6 +1,6 @@
 {
   "name": "yi-jia",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "DeepSeek 峰谷时段 + 推理强度双维度成本守卫（DSH 插件）：峰时拦截批量任务、常驻可拖动花费徽标、可对账的成本流水。Off-Peak Guard.",
   "type": "module",
   "main": "./src/yi-jia.mjs",
@@ -15,6 +15,7 @@
   "files": [
     "src/yi-jia.mjs",
     "src/i18n.cjs",
+    "src/games.cjs",
     "scripts/scan.cjs",
     "scripts/cost_report.js",
     "scripts/offpeak.py",
