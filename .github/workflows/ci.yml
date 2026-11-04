@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # JS 语法检查（ESM/CJS 都过一遍 node --check）
+      - name: 语法检查
+        run: |
+          set -e
+          for f in $(git ls-files '*.mjs' '*.cjs' '*.js'); do
+            node --check "$f"
+          done
+
+      # 打包完整性：确认 files 白名单里的文件都在
+      - name: 打包干跑
+        run: npm pack --dry-run
